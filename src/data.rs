@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub(crate) struct MidiData {
     pub ts: u64,
     pub data: [u8; 3]
