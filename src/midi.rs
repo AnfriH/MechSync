@@ -8,11 +8,11 @@ use midir::{ConnectError, MidiInput, MidiInputConnection, MidiOutput, MidiOutput
 use midir::os::unix::{VirtualInput, VirtualOutput};
 
 use crate::data::MidiData;
-use crate::node::Node;
+use crate::node::{Node, OptNode};
 
 #[derive(Copy, Clone)]
 struct InputCallback {
-    ptr: *mut RwLock<Option<Weak<dyn Node>>>
+    ptr: *mut OptNode
 }
 
 unsafe impl Sync for InputCallback {}
@@ -20,24 +20,22 @@ unsafe impl Send for InputCallback {}
 
 impl InputCallback {
     unsafe fn call(&self, data: MidiData) {
-        if let Some(callback) = self.ptr.as_ref().unwrap().read().unwrap().as_ref() {
-            callback.upgrade().unwrap().call(data);
-        }
+        self.ptr.as_ref().unwrap().call(data);
     }
 
     unsafe fn bind(&self, node: Weak<dyn Node>) {
-        let _ = self.ptr.as_ref().unwrap().write().unwrap().insert(node);
+        self.ptr.as_ref().unwrap().bind(node);
     }
 }
 
 pub(crate) struct Input {
     connection: ManuallyDrop<Mutex<MidiInputConnection<()>>>,
-    ptr: InputCallback
+    binding: InputCallback
 }
 
 impl Input {
     pub(crate) fn new(name: &str) -> Result<Self, ConnectError<MidiInput>> {
-        let backing = MidiInput::new(name).unwrap();
+        let backing = MidiInput::new("MechSync").unwrap();
 
         let binding = InputCallback { ptr: Box::into_raw(Box::new(RwLock::new(None)))};
         let binding_cpy = binding;
@@ -50,16 +48,10 @@ impl Input {
                     binding_cpy.call(md);
                 });
             }, ())?)),
-            ptr: binding,
+            binding,
         };
 
         Ok(input)
-    }
-
-    pub(crate) fn bind(&self, node: Weak<dyn Node>) {
-        unsafe {
-            self.ptr.bind(node);
-        }
     }
 }
 
@@ -67,6 +59,12 @@ impl Node for Input {
     // NOTE: you probably didn't want to call this
     fn call(&self, _data: MidiData) -> () {
         //TODO: what should we do here?
+    }
+
+    fn bind(&self, node: Weak<dyn Node>) {
+        unsafe {
+            self.binding.bind(node);
+        }
     }
 }
 
@@ -77,7 +75,7 @@ impl Drop for Input {
             ManuallyDrop::drop(&mut self.connection);
 
             // then destroy the ptr
-            let _ = Box::from_raw(self.ptr.ptr);
+            let _ = Box::from_raw(self.binding.ptr);
         }
     }
 }
@@ -88,7 +86,7 @@ pub(crate) struct Output {
 
 impl Output {
     pub(crate) fn new(name: &str) -> Result<Self, ConnectError<MidiOutput>> {
-        let backing = MidiOutput::new(name).unwrap();
+        let backing = MidiOutput::new("MechSync").unwrap();
         Ok(Output { output: Mutex::new(backing.create_virtual(name)?), })
     }
 }
@@ -96,5 +94,10 @@ impl Output {
 impl Node for Output {
     fn call(&self, data: MidiData) -> () {
         self.output.lock().unwrap().send(data.data.as_slice()).unwrap();
+    }
+
+    // NOTE: you probably didn't want to call this
+    fn bind(&self, _node: Weak<dyn Node>) -> () {
+        //TODO: what should we do here?
     }
 }
