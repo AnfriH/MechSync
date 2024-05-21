@@ -1,16 +1,18 @@
 use std::sync::Arc;
-use crate::node::Node;
+use std::thread::sleep;
+use std::time::Duration;
+use crate::node::{DummyNode, Node};
 
 mod node;
 mod data;
 mod midi;
 
+use midi::{Input, Output};
+
 fn main() {
-    midi::virtual_input("DemoInput").expect("Fail");
-
-    let demo_node: Arc<dyn Node> = Arc::new(node::DummyNode {});
-    midi::bind_input("DemoInput", Arc::downgrade(&demo_node)).expect("Input should exist");
-
-    loop {}
+    let v_in = Input::new("v_in").expect("Exploded!");
+    let dummy: Arc<dyn Node> = Arc::new(DummyNode {});
+    v_in.bind(Arc::downgrade(&dummy));
+    sleep(Duration::from_secs(5));
 }
 
