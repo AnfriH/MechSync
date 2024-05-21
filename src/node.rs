@@ -1,4 +1,6 @@
 use std::sync::Weak;
+use std::time::{Duration, Instant};
+use may::coroutine::sleep;
 use may::sync::RwLock;
 use crate::data::MidiData;
 
@@ -48,3 +50,28 @@ impl Node for DebugNode {
     }
 }
 
+pub(crate) struct DelayNode {
+    duration: Duration,
+    next: OptNode
+}
+
+impl DelayNode {
+    pub(crate) fn new(duration: Duration) -> Self {
+        DelayNode {
+            duration,
+            next: RwLock::new(None),
+        }
+    }
+}
+
+impl Node for DelayNode {
+    fn call(&self, data: MidiData) -> () {
+        //TODO: coroutine::sleep should be evaluated to see whether it may benefit from spin-locking
+        sleep(self.duration);
+        self.next.call(MidiData { ts: data.ts + self.duration.as_nanos() as u64, data: data.data });
+    }
+
+    fn bind(&self, node: Weak<dyn Node>) -> () {
+        self.next.bind(node);
+    }
+}
