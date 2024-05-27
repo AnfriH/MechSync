@@ -1,16 +1,17 @@
 use std::cmp::max;
 use std::io::{Read, stdin};
 use std::sync::Arc;
-use std::thread::sleep;
 use std::time::Duration;
+
+use crate::instruments::{DrumBot, MechBass};
 use crate::midi::{Input, Output};
-use crate::node::{DebugNode, Node, DelayNode};
-use crate::instruments::{MechBass, DrumBot};
+use crate::node::{DelayNode, Node};
 
 mod node;
 mod data;
 mod midi;
 mod instruments;
+
 
 static DRUMBOT_DELAY_MS: u64 = 2000;
 
