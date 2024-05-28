@@ -8,7 +8,7 @@ impl MidiData {
     pub(crate) fn from_slice(ts: u64, data: &[u8]) -> MidiData {
         let mut md = MidiData {
             ts,
-            data: [0u8, 0u8, 0u8],
+            data: [0u8; 3],
         };
         for (x, y) in md.data.iter_mut().zip(data) {
             *x = *y;
@@ -16,3 +16,14 @@ impl MidiData {
         md
     }
 }
+
+// trait ToArray<T> {
+//     fn try_array<const S: usize>(&mut self) -> Option<[T; S]>;
+// }
+//
+// impl<T> ToArray<T> for dyn Iterator<Item=T> {
+//     fn try_array<const S: usize>(&mut self) -> Option<[T; S]> {
+//         let data: [T; S] = [Default::default(); S];
+//         data
+//     }
+// }
