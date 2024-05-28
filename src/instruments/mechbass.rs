@@ -4,9 +4,8 @@ use std::time::Duration;
 use may::coroutine::sleep;
 use may::sync::RwLock;
 
-use crate::data::{MidiData};
+use crate::data::MidiData;
 use crate::node::{Node, OptNode};
-use crate::{rwlock_get, rwlock_get_mut};
 
 // 12 notes in a scale
 const TEMPERAMENT: f32 = 12f32;
@@ -68,13 +67,24 @@ impl MechBass {
     }
 
     fn panning_delay(&self, note: u8, channel: usize) -> Duration {
-        let p = rwlock_get!(self.prev_notes[channel]).note;
+        let p = self.prev_notes[channel].read().unwrap().note;
         let prev_note: u8 = p - TUNING[channel];
         let cur_note: u8 = note - TUNING[channel];
 
         let dist = MechBass::note_distance(prev_note, cur_note);
 
         Duration::from_secs_f32(LINEAR_COMP * dist.powf(EXPONENTIAL_COMP))
+    }
+
+    fn dispatch_channel(&self, note: u8) -> usize {
+        for channel in 0usize..4 {
+            // TODO: We should also heuristically choose a different string if we cannot pan in time (rare)
+            // play the highest string possible, if taken, use next highest and so on
+            if TUNING[channel] < note && !self.prev_notes[channel].read().unwrap().playing {
+                return channel
+            }
+        }
+        0
     }
 }
 
@@ -84,41 +94,35 @@ impl Node for MechBass {
 
         match instruction {
             // we only care about note playing
-            0b1000 | 0b1001 | 0b1010 => {
-                let note_number = data.data[1];
-
-                // TODO: a smarter dispatcher is needed for when a string is occupied
-                // match depending on string
-                let channel = match note_number {
-                    0..=32 => 3u8,
-                    33..=37 => 2u8,
-                    38..=42 => 1u8,
-                    _ => 0u8,
-                };
-
-                let function = (instruction << 4) | channel;
-
-                let channel = channel as usize;
+            0b1000 | 0b1001 => {
+                let note = data.data[1];
+                let mut channel = 0;
                 let mut delay = Duration::from_secs(0);
 
-                match instruction {
-                    0b1001 => {
-                        delay = self.panning_delay(note_number, channel);
-                        rwlock_get_mut!(self.prev_notes[channel]) = PlayedNode::play(note_number, delay);
-                    }
-                    0b1000 => {
-                        let pd = *rwlock_get!(self.prev_notes[channel]);
-                        if pd.note == note_number {
-                            delay = pd.delay;
-                            rwlock_get_mut!(self.prev_notes[channel]).playing = false;
+                if instruction == 0b1001 {
+                    channel = self.dispatch_channel(note);
+                    delay = self.panning_delay(note, channel);
+                    *(self.prev_notes[channel].write().unwrap()) = PlayedNode::play(note, delay);
+
+                    println!("Playing note {} on string {} in {:?}", note, channel, delay);
+                } else {
+                    for ch in 0usize..4 {
+                        let n = self.prev_notes[ch].read().unwrap().note;
+                        if n == note {
+                            let mut guard = self.prev_notes[ch].write().unwrap();
+
+                            channel = ch;
+                            delay = guard.delay;
+                            guard.playing = false;
+                            break;
                         }
                     }
-                    _ => {}
+                    println!("Stopping note {} on string {} in {:?}", note, channel, delay);
                 }
 
-                println!("{:?}", delay);
                 sleep(self.delay - delay);
 
+                let function = (instruction << 4) | channel as u8;
                 self.next.call(MidiData {ts: data.ts, data: [function, data.data[1], data.data[2]] })
             }
             _ => {}
