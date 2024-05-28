@@ -17,6 +17,19 @@ impl MidiData {
     }
 }
 
+#[macro_export] macro_rules! rwlock_get {
+    ($expression:expr) => {
+        &*($expression.read().unwrap())
+    };
+}
+
+#[macro_export] macro_rules! rwlock_get_mut {
+    ($expression:expr) => {
+        *($expression.write().unwrap())
+    };
+}
+
+// TODO: determine whether this is required
 // trait ToArray<T> {
 //     fn try_array<const S: usize>(&mut self) -> Option<[T; S]>;
 // }
