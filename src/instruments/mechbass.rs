@@ -80,7 +80,15 @@ impl MechBass {
         for channel in 0usize..4 {
             // TODO: We should also heuristically choose a different string if we cannot pan in time (rare)
             // play the highest string possible, if taken, use next highest and so on
-            if TUNING[channel] < note && !self.prev_notes[channel].read().unwrap().playing {
+            if TUNING[channel] <= note && !self.prev_notes[channel].read().unwrap().playing {
+                return channel
+            }
+        }
+        // TODO: should we consider stealing the channel which has played the longest?
+        // if all usable channels are taken, we'll just steal a channel early
+        for channel in 0usize..4 {
+            if TUNING[channel] <= note {
+                println!("WARNING: note {} overriden by {} - channel {}", self.prev_notes[channel].read().unwrap().note, note, channel);
                 return channel
             }
         }
@@ -91,42 +99,41 @@ impl MechBass {
 impl Node for MechBass {
     fn call(&self, data: MidiData) -> () {
         let instruction = (data.data[0] & 0b1111_0000) >> 4;
+        if let 0b1000 | 0b1001 = instruction {
+            let note = data.data[1];
+            let velocity = data.data[2];
+            let mut channel = 0;
+            let mut delay = Duration::from_secs(0);
 
-        match instruction {
-            // we only care about note playing
-            0b1000 | 0b1001 => {
-                let note = data.data[1];
-                let mut channel = 0;
-                let mut delay = Duration::from_secs(0);
+            if instruction == 0b1001 && velocity != 0 {
+                channel = self.dispatch_channel(note);
+                delay = self.panning_delay(note, channel);
+                *(self.prev_notes[channel].write().unwrap()) = PlayedNode::play(note, delay);
 
-                if instruction == 0b1001 {
-                    channel = self.dispatch_channel(note);
-                    delay = self.panning_delay(note, channel);
-                    *(self.prev_notes[channel].write().unwrap()) = PlayedNode::play(note, delay);
+                println!("⬇ #{} - S{}", note, channel);
+                sleep(self.delay - delay);
+            } else {
+                for ch in 0usize..4 {
+                    let n = self.prev_notes[ch].read().unwrap().note;
+                    if n == note {
+                        let guard = self.prev_notes[ch].read().unwrap();
 
-                    println!("Playing note {} on string {} in {:?}", note, channel, delay);
-                } else {
-                    for ch in 0usize..4 {
-                        let n = self.prev_notes[ch].read().unwrap().note;
-                        if n == note {
-                            let mut guard = self.prev_notes[ch].write().unwrap();
-
-                            channel = ch;
-                            delay = guard.delay;
-                            guard.playing = false;
-                            break;
-                        }
+                        channel = ch;
+                        delay = guard.delay;
                     }
-                    println!("Stopping note {} on string {} in {:?}", note, channel, delay);
                 }
 
+                println!("⬆ #{} - S{}", note, channel);
                 sleep(self.delay - delay);
 
-                let function = (instruction << 4) | channel as u8;
-                self.next.call(MidiData {ts: data.ts, data: [function, data.data[1], data.data[2]] })
+                {
+                    self.prev_notes[channel].write().unwrap().playing = false;
+                }
             }
-            _ => {}
-        };
+
+            let function = (instruction << 4) | channel as u8;
+            self.next.call(MidiData {ts: data.ts, data: [function, data.data[1], data.data[2]] })
+        }
     }
 
     fn bind(&self, node: Weak<dyn Node>) -> () {
