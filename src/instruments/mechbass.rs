@@ -1,5 +1,5 @@
 use std::sync::Weak;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use may::coroutine::sleep;
 use may::sync::RwLock;
@@ -17,33 +17,36 @@ const EXPONENTIAL_COMP: f32 = 0.570981f32;
 const TUNING: [u8; 4] = [43, 38, 33, 28];
 
 #[derive(Copy, Clone, Debug)]
-struct PlayedNode {
-    pub(crate) note: u8,
-    pub(crate) playing: bool,
-    pub(crate) delay: Duration,
+struct PlayedNote {
+    playing: bool,
+    note: u8,
+    delay: Duration,
+    ts: Instant
 }
 
-impl PlayedNode {
+impl PlayedNote {
     fn default(note: u8) -> Self {
-        PlayedNode {
-            note,
+        PlayedNote {
             playing: false,
-            delay: Duration::from_secs(0),
+            note,
+            delay: Duration::default(),
+            ts: Instant::now()
         }
     }
 
     fn play(note: u8, delay: Duration) -> Self {
-        PlayedNode {
-            note,
+        PlayedNote {
             playing: true,
+            note,
             delay,
+            ts: Instant::now()
         }
     }
 }
 
 pub(crate) struct MechBass {
     // TODO: we need to encode prev_time into this
-    prev_notes: [RwLock<PlayedNode>; 4],
+    prev_notes: [RwLock<PlayedNote>; 4],
     next: OptNode,
     delay: Duration
 }
@@ -52,7 +55,7 @@ impl MechBass {
     pub(crate) fn new(delay: Duration) -> Self {
         MechBass {
             next: RwLock::new(None),
-            prev_notes: TUNING.map(|n| RwLock::new(PlayedNode::default(n))),
+            prev_notes: TUNING.map(|n| RwLock::new(PlayedNote::default(n))),
             delay
         }
     }
@@ -73,15 +76,19 @@ impl MechBass {
 
         let dist = MechBass::note_distance(prev_note, cur_note);
 
-        Duration::from_secs_f32(LINEAR_COMP * dist.powf(EXPONENTIAL_COMP))
+        self.delay - Duration::from_secs_f32(LINEAR_COMP * dist.powf(EXPONENTIAL_COMP))
     }
 
-    fn dispatch_channel(&self, note: u8) -> usize {
+    fn dispatch_channel(&self, note: u8) -> (usize, Duration) {
         for channel in 0usize..4 {
             // TODO: We should also heuristically choose a different string if we cannot pan in time (rare)
             // play the highest string possible, if taken, use next highest and so on
-            if TUNING[channel] <= note && !self.prev_notes[channel].read().unwrap().playing {
-                return channel
+            if TUNING[channel] <= note {
+                let prev_note = self.prev_notes[channel].read().unwrap();
+                let delay = self.panning_delay(note, channel);
+                if !prev_note.playing && Instant::now() + delay > prev_note.ts + prev_note.delay {
+                    return (channel, delay)
+                }
             }
         }
         // TODO: should we consider stealing the channel which has played the longest?
@@ -89,10 +96,11 @@ impl MechBass {
         for channel in 0usize..4 {
             if TUNING[channel] <= note {
                 println!("WARNING: note {} overriden by {} - channel {}", self.prev_notes[channel].read().unwrap().note, note, channel);
-                return channel
+                let delay = self.panning_delay(note, channel);
+                return (channel, delay)
             }
         }
-        0
+        return (0, self.panning_delay(note, 0))
     }
 }
 
@@ -106,12 +114,13 @@ impl Node for MechBass {
             let mut delay = Duration::from_secs(0);
 
             if instruction == 0b1001 && velocity != 0 {
-                channel = self.dispatch_channel(note);
-                delay = self.panning_delay(note, channel);
-                *(self.prev_notes[channel].write().unwrap()) = PlayedNode::play(note, delay);
+                (channel, delay) = self.dispatch_channel(note);
+                {
+                    *(self.prev_notes[channel].write().unwrap()) = PlayedNote::play(note, delay);
+                }
 
                 println!("⬇ #{} - S{}", note, channel);
-                sleep(self.delay - delay);
+                sleep(delay);
             } else {
                 for ch in 0usize..4 {
                     let n = self.prev_notes[ch].read().unwrap().note;
@@ -122,13 +131,14 @@ impl Node for MechBass {
                         delay = guard.delay;
                     }
                 }
+                {
+                    let mut prev_note = self.prev_notes[channel].write().unwrap();
+                    prev_note.playing = false;
+                    prev_note.ts = Instant::now();
+                }
 
                 println!("⬆ #{} - S{}", note, channel);
-                sleep(self.delay - delay);
-
-                {
-                    self.prev_notes[channel].write().unwrap().playing = false;
-                }
+                sleep(delay);
             }
 
             let function = (instruction << 4) | channel as u8;
