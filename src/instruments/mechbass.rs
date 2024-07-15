@@ -102,48 +102,59 @@ impl MechBass {
         }
         return (0, self.panning_delay(note, 0))
     }
+
+    fn find_playing(&self, note: u8) -> Option<(usize, Duration)> {
+        for ch in 0usize..4 {
+            let prev_note = self.prev_notes[ch].read().unwrap();
+            if prev_note.playing && prev_note.note == note {
+                let guard = self.prev_notes[ch].read().unwrap();
+
+                return Some((ch, guard.delay));
+            }
+        }
+        println!("WARNING: released note {}, but none were playing", note);
+        return None
+    }
 }
 
 impl Node for MechBass {
     fn call(&self, data: MidiData) -> () {
         let instruction = (data.data[0] & 0b1111_0000) >> 4;
-        if let 0b1000 | 0b1001 = instruction {
-            let note = data.data[1];
-            let velocity = data.data[2];
-            let mut channel = 0;
-            let mut delay = Duration::from_secs(0);
 
-            if instruction == 0b1001 && velocity != 0 {
-                (channel, delay) = self.dispatch_channel(note);
-                {
-                    *(self.prev_notes[channel].write().unwrap()) = PlayedNote::play(note, delay);
-                }
+        let (0b1000 | 0b1001) = instruction else {
+            return;
+        };
+        let note = data.data[1];
+        let velocity = data.data[2];
+        let channel;
+        let delay;
 
-                println!("⬇ #{} - S{}", note, channel);
-                sleep(delay);
-            } else {
-                for ch in 0usize..4 {
-                    let n = self.prev_notes[ch].read().unwrap().note;
-                    if n == note {
-                        let guard = self.prev_notes[ch].read().unwrap();
+        // TODO: this behaviour still needs cleaning up a lot!
+        if instruction == 0b1001 && velocity != 0 {
+            (channel, delay) = self.dispatch_channel(note);
+            {
+                *(self.prev_notes[channel].write().unwrap()) = PlayedNote::play(note, delay);
+            }
+            println!("⬇ #{} - S{}", note, channel);
+            sleep(delay);
+        } else {
+            let Some(playing) = self.find_playing(note) else {
+                return;
+            };
+            (channel, delay) = playing;
 
-                        channel = ch;
-                        delay = guard.delay;
-                    }
-                }
-                {
-                    let mut prev_note = self.prev_notes[channel].write().unwrap();
-                    prev_note.playing = false;
-                    prev_note.ts = Instant::now();
-                }
-
-                println!("⬆ #{} - S{}", note, channel);
-                sleep(delay);
+            {
+                let mut prev_note = self.prev_notes[channel].write().unwrap();
+                prev_note.playing = false;
+                prev_note.ts = Instant::now();
             }
 
-            let function = (instruction << 4) | channel as u8;
-            self.next.call(MidiData {ts: data.ts, data: [function, data.data[1], data.data[2]] })
+            println!("⬆ #{} - S{}", note, channel);
         }
+
+        sleep(delay);
+        let function = (instruction << 4) | channel as u8;
+        self.next.call(MidiData {ts: data.ts, data: [function, data.data[1], data.data[2]] })
     }
 
     fn bind(&self, node: Weak<dyn Node>) -> () {
