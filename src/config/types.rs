@@ -8,9 +8,9 @@ use crate::midi::{Input, Output};
 use crate::node::Node;
 
 pub(super) trait NodeFactory {
-    fn factory(name: &str, traits: &HashMap<String, String>) -> Result<Arc<dyn Node>, Box<dyn Error>>;
+    fn factory(kwargs: &HashMap<String, String>) -> Result<Arc<dyn Node>, Box<dyn Error>>;
 }
-type FactoryFunction = fn(&str, &HashMap<String, String>) -> Result<Arc<dyn Node>, Box<dyn Error>>;
+type FactoryFunction = fn(&HashMap<String, String>) -> Result<Arc<dyn Node>, Box<dyn Error>>;
 
 macro_rules! types {
     ( $( $typename:ident ),* ) => {

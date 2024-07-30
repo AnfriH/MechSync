@@ -10,13 +10,13 @@ use crate::node::Node;
  */
 
 impl NodeFactory for Input {
-    fn factory(name: &str, _traits: &HashMap<String, String>) -> Result<Arc<dyn Node>, Box<dyn Error>> {
-        Ok(Arc::new(Input::new(name)?))
+    fn factory(kwargs: &HashMap<String, String>) -> Result<Arc<dyn Node>, Box<dyn Error>> {
+        Ok(Arc::new(Input::new(kwargs.get("name").unwrap())?))
     }
 }
 
 impl NodeFactory for Output {
-    fn factory(name: &str, _traits: &HashMap<String, String>) -> Result<Arc<dyn Node>, Box<dyn Error>> {
-        Ok(Arc::new(Output::new(name)?))
+    fn factory(kwargs: &HashMap<String, String>) -> Result<Arc<dyn Node>, Box<dyn Error>> {
+        Ok(Arc::new(Output::new(kwargs.get("name").unwrap())?))
     }
 }
