@@ -1,3 +1,3 @@
-mod graph;
-pub(crate) mod config;
+pub(crate) mod graph;
+mod config;
 mod factories;

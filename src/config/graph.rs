@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::config::config::ConfigError;
+use crate::config::config::{Config, ConfigError};
 use crate::node::Node;
 
 pub(crate) struct Graph {
@@ -9,6 +9,10 @@ pub(crate) struct Graph {
 }
 
 impl Graph {
+    pub(crate) fn from_yaml(yaml: &str) -> Result<Self, ConfigError> {
+        serde_yml::from_str::<Config>(yaml).map_err(ConfigError::of)?.build()
+    }
+
     pub(super) fn new() -> Self {
         Graph { nodes: HashMap::new() }
     }

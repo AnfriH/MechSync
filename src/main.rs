@@ -1,6 +1,6 @@
 use std::io::Read;
 use std::thread;
-use crate::config::config::Config;
+use crate::config::graph::Graph;
 use crate::node::Node;
 
 mod node;
@@ -17,14 +17,14 @@ const MECHBASS_DELAY_MS: u64 = 0;
 const MAX_DELAY: u64 = [MECHBASS_DELAY_MS, DRUMBOT_DELAY_MS][(MECHBASS_DELAY_MS < DRUMBOT_DELAY_MS) as usize];
 
 fn main() {
-    let graph = serde_yml::from_str::<Config>("
-    - name: Dummy Input
-      type: Input
-      next: Dummy Output
+    let graph = Graph::from_yaml("
+        - name: Dummy Input
+          type: Input
+          next: Dummy Output
 
-    - name: Dummy Output
-      type: Output
-    ").expect("EXPLODE!").build().expect("It blew up");
+        - name: Dummy Output
+          type: Output
+    ").unwrap();
 
     loop { thread::park(); }
 }

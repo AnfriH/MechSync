@@ -1,0 +1,7 @@
+---
+- name: MechBass Input
+  type: Input
+  next:
+
+- name: MechBass Output
+  type: Output
