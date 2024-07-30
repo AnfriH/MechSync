@@ -136,7 +136,6 @@ impl Node for MechBass {
                 *(self.prev_notes[channel].write().unwrap()) = PlayedNote::play(note, delay);
             }
             println!("⬇ #{} - S{}", note, channel);
-            sleep(delay);
         } else {
             let Some(playing) = self.find_playing(note) else {
                 return;
