@@ -1,10 +1,37 @@
 use std::collections::HashMap;
-
+use std::error::Error;
+use std::fmt::{Debug, Display, Formatter};
 use serde::{Deserialize, Deserializer};
-use serde::de::Error;
-
+use serde::de::Error as SerdeError;
+use crate::config::factories::TYPES;
 use crate::config::graph::Graph;
-use crate::config::types::TYPES;
+
+#[derive(Debug)]
+pub(crate) struct ConfigError {
+    message: String
+}
+
+impl Display for ConfigError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ConfigError: {}", self.message)
+    }
+}
+
+impl Error for ConfigError {}
+
+impl ConfigError {
+    pub(crate) fn new(message: &str) -> Self {
+        ConfigError {
+            message: String::from(message)
+        }
+    }
+
+    pub(crate) fn of<E: Error>(err: E) -> Self {
+        ConfigError {
+            message: err.to_string()
+        }
+    }
+}
 
 pub(crate) struct Config {
     nodes: Vec<NodeConfig>
@@ -17,21 +44,26 @@ pub(crate) struct NodeConfig {
 }
 
 impl Config {
-    pub(crate) fn build(&self) -> Result<Graph, ()> {
+    pub(crate) fn build(&self) -> Result<Graph, ConfigError> {
         let mut graph = Graph::new();
 
         for node in self.nodes.iter() {
-            println!("{} - {}", node.name, node.type_);
+            let type_ = node.type_.as_str();
+            let factory = TYPES.get(type_)
+                .ok_or(ConfigError::new(&format!("Unknown type: {}", type_)))?;
+
+            let dyn_node = factory(&node.traits).map_err(
+                |err| ConfigError::new(&format!("{}", err))
+            )?;
+
             graph.insert(
                 node.name.as_str(),
-                TYPES.get(node.type_.as_str()).expect("TODO: ERROR HANDLING")(
-                    &node.traits
-                ).expect("TODO: WE CAN'T ASSUME THE CONSTRUCTOR DOESN'T BLOW UP")
+                dyn_node
             )
         }
         for node in self.nodes.iter() {
             if let Some(next) = node.traits.get("next") {
-                graph.bind(node.name.as_str(), next.as_str());
+                graph.bind(node.name.as_str(), next.as_str())?;
             }
         }
         Ok(graph)
@@ -48,8 +80,8 @@ impl<'de> Deserialize<'de> for Config {
 impl<'de> Deserialize<'de> for NodeConfig {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let traits: HashMap<String, String> = HashMap::deserialize(d)?;
-        let name = traits.get("name").ok_or(Error::missing_field("name"))?.to_string();
-        let type_ = traits.get("type").ok_or(Error::missing_field("type"))?.to_string();
+        let name = traits.get("name").ok_or(SerdeError::missing_field("name"))?.to_string();
+        let type_ = traits.get("type").ok_or(SerdeError::missing_field("type"))?.to_string();
         Ok(
             NodeConfig {
                 name,
