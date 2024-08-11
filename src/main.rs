@@ -17,6 +17,12 @@ fn main() {
 
         - name: MechBass Node
           type: MechBass
+          next: Sync Delay
+
+        - name: Sync Delay
+          type: DelayNode
+          duration: 0.5
+          is_total: true
           next: Dummy Output
 
         - name: Dummy Output

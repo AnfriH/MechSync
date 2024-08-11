@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
+use std::time::Duration;
 use serde::{Deserialize, Deserializer};
 use serde::de::Error as SerdeError;
 use crate::config::factories::TYPES;
@@ -34,7 +35,8 @@ impl ConfigError {
 }
 
 pub(crate) struct Config {
-    nodes: Vec<NodeConfig>
+    nodes: Vec<NodeConfig>,
+    pub(super) delays: HashMap<String, Duration>
 }
 
 pub(crate) struct NodeConfig {
@@ -44,7 +46,7 @@ pub(crate) struct NodeConfig {
 }
 
 impl Config {
-    pub(crate) fn build(&self) -> Result<Graph, ConfigError> {
+    pub(crate) fn build(mut self) -> Result<Graph, ConfigError> {
         let mut graph = Graph::new();
 
         for node in self.nodes.iter() {
@@ -52,15 +54,16 @@ impl Config {
             let factory = TYPES.get(type_)
                 .ok_or(ConfigError::new(&format!("Unknown type: {}", type_)))?;
 
-            let dyn_node = factory(&node.traits).map_err(
-                |err| ConfigError::new(&format!("{}", err))
-            )?;
-
+            let dyn_node = factory(&self, &node.traits)?;
+            if let Some(next) = node.traits.get("next") {
+                self.delays.insert(next.clone(), dyn_node.delay() + *self.delays.get(&node.name).unwrap_or(&Duration::from_secs(0)));
+            }
             graph.insert(
                 node.name.as_str(),
                 dyn_node
             )
         }
+
         for node in self.nodes.iter() {
             if let Some(next) = node.traits.get("next") {
                 graph.bind(node.name.as_str(), next.as_str())?;
@@ -73,7 +76,7 @@ impl Config {
 impl<'de> Deserialize<'de> for Config {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let nodes = Vec::deserialize(d)?;
-        Ok(Config { nodes })
+        Ok(Config { nodes, delays: HashMap::new() })
     }
 }
 

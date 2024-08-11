@@ -165,4 +165,8 @@ impl Node for MechBass {
     fn bind(&self, node: Weak<dyn Node>) -> () {
         self.next.bind(node);
     }
+
+    fn delay(&self) -> Duration {
+        *MAX_PAN_TIME
+    }
 }

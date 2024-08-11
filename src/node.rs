@@ -11,6 +11,10 @@ pub(crate) trait Node: Sync + Send {
 
     //FIXME: This doesn't seem appropriate. Not all nodes support binding children
     fn bind(&self, node: Weak<dyn Node>) -> ();
+
+    fn delay(&self) -> Duration {
+        Duration::from_secs(0)
+    }
 }
 
 impl Node for OptNode {
@@ -73,5 +77,9 @@ impl Node for DelayNode {
 
     fn bind(&self, node: Weak<dyn Node>) -> () {
         self.next.bind(node);
+    }
+
+    fn delay(&self) -> Duration {
+        return self.duration
     }
 }
