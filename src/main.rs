@@ -9,17 +9,14 @@ mod midi;
 mod instruments;
 mod config;
 
-const  DRUMBOT_DELAY_MS: u64 = 2000;
-
-// mechbass is trivially fast at the moment
-const MECHBASS_DELAY_MS: u64 = 0;
-
-const MAX_DELAY: u64 = [MECHBASS_DELAY_MS, DRUMBOT_DELAY_MS][(MECHBASS_DELAY_MS < DRUMBOT_DELAY_MS) as usize];
-
 fn main() {
-    let graph = Graph::from_yaml("
+    let _graph = Graph::from_yaml("
         - name: Dummy Input
           type: Input
+          next: Dummy Output
+
+        - name: MechBass Node
+          type: MechBass
           next: Dummy Output
 
         - name: Dummy Output

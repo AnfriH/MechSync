@@ -1,5 +1,5 @@
 use std::sync::Weak;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use may::coroutine::sleep;
 use may::sync::RwLock;
 use crate::data::MidiData;
@@ -41,7 +41,7 @@ impl DebugNode {
 
 impl Node for DebugNode {
     fn call(&self, data: MidiData) -> () {
-        println!("{} Received {:?} at {}ns", self.name, data.data, data.ts);
+        println!("{}: Received {:?} at {:?}", self.name, data.data, Instant::now());
         self.next.call(data);
     }
 

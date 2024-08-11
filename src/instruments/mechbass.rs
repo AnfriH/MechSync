@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use may::coroutine::sleep;
 use may::sync::RwLock;
-
+use once_cell::sync::Lazy;
 use crate::data::MidiData;
 use crate::node::{Node, OptNode};
 
@@ -15,6 +15,14 @@ const TEMPERAMENT: f32 = 12f32;
 const LINEAR_COMP: f32 = 0.577963f32;
 const EXPONENTIAL_COMP: f32 = 0.570981f32;
 const TUNING: [u8; 4] = [43, 38, 33, 28];
+const FRETS: u8 = 13;
+
+// derive the maximum panning duration based on the maximum distance travelled between frets
+static MAX_PAN_TIME: Lazy<Duration> = Lazy::new(|| {
+    Duration::from_secs_f32(
+        LINEAR_COMP * MechBass::note_distance(0, FRETS).powf(EXPONENTIAL_COMP)
+    )
+});
 
 #[derive(Copy, Clone, Debug)]
 struct PlayedNote {
@@ -48,15 +56,13 @@ pub(crate) struct MechBass {
     // TODO: we need to encode prev_time into this
     prev_notes: [RwLock<PlayedNote>; 4],
     next: OptNode,
-    delay: Duration
 }
 
 impl MechBass {
-    pub(crate) fn new(delay: Duration) -> Self {
+    pub(crate) fn new() -> Self {
         MechBass {
             next: RwLock::new(None),
             prev_notes: TUNING.map(|n| RwLock::new(PlayedNote::default(n))),
-            delay
         }
     }
 
@@ -76,7 +82,7 @@ impl MechBass {
 
         let dist = MechBass::note_distance(prev_note, cur_note);
 
-        self.delay - Duration::from_secs_f32(LINEAR_COMP * dist.powf(EXPONENTIAL_COMP))
+        *MAX_PAN_TIME - Duration::from_secs_f32(LINEAR_COMP * dist.powf(EXPONENTIAL_COMP))
     }
 
     fn dispatch_channel(&self, note: u8) -> (usize, Duration) {
