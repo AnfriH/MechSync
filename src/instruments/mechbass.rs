@@ -11,16 +11,23 @@ use crate::node::{Node, OptNode};
 const TEMPERAMENT: f32 = 12f32;
 
 // TODO: we've only derived using G2 -> (G2 .. G3), maybe worth testing some additional transitions?
-// magic constants obtained via regression of Δt = linear * Δd ^ exponential
-const LINEAR_COMP: f32 = 0.577963f32;
-const EXPONENTIAL_COMP: f32 = 0.570981f32;
+// magic constants obtained via regression of Δt = linear * Δd ^ exponential + quad * Δd ^ 2
+const LINEAR_COMP: f32 = 0.515936f32;
+const EXPONENTIAL_COMP: f32 = 0.515920f32;
+const QUADRATIC_COMP: f32 = 0.125675f32;
+
 const TUNING: [u8; 4] = [43, 38, 33, 28];
 const FRETS: u8 = 13;
+
+#[inline]
+fn time(dist: f32) -> f32 {
+    LINEAR_COMP * dist.powf(EXPONENTIAL_COMP) + dist * dist * QUADRATIC_COMP
+}
 
 // derive the maximum panning duration based on the maximum distance travelled between frets
 static MAX_PAN_TIME: Lazy<Duration> = Lazy::new(|| {
     Duration::from_secs_f32(
-        LINEAR_COMP * MechBass::note_distance(0, FRETS).powf(EXPONENTIAL_COMP)
+        time(MechBass::note_distance(0, FRETS))
     )
 });
 
@@ -82,7 +89,7 @@ impl MechBass {
 
         let dist = MechBass::note_distance(prev_note, cur_note);
 
-        *MAX_PAN_TIME - Duration::from_secs_f32(LINEAR_COMP * dist.powf(EXPONENTIAL_COMP))
+        *MAX_PAN_TIME - Duration::from_secs_f32(time(dist))
     }
 
     fn dispatch_channel(&self, note: u8) -> (usize, Duration) {
