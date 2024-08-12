@@ -1,7 +1,9 @@
-use std::io::Read;
+use std::error::Error;
+use std::fs::read_to_string;
+use std::path::Path;
 use std::thread;
+use clap::Parser;
 use crate::config::graph::Graph;
-use crate::node::Node;
 
 mod node;
 mod data;
@@ -9,27 +11,27 @@ mod midi;
 mod instruments;
 mod config;
 
+#[derive(Parser, Debug)]
+struct Args {
+    #[arg(short, long)]
+    config_file: String,
+    // TODO: Implement debug logging to allow for better traceability within the graph
+    // #[arg(short, long, default_value = "false")]
+    // debug: bool
+}
+
 fn main() {
-    let _graph = Graph::from_yaml("
-        - name: Dummy Input
-          type: Input
-          next: Dummy Output
+    run().unwrap_or_else(|err| println!("An error occured:\n{}", err));
+}
 
-        - name: MechBass Node
-          type: MechBass
-          next: Sync Delay
+fn run() -> Result<(), Box<dyn Error>> {
+    let args = Args::try_parse()?;
+    let yaml = read_to_string(Path::new(&args.config_file))?;
+    let _graph = Graph::from_yaml(&yaml)?;
 
-        - name: Sync Delay
-          type: DelayNode
-          duration: 0.5
-          is_total: true
-          next: Dummy Output
-
-        - name: Dummy Output
-          type: Output
-    ").unwrap();
-
-    loop { thread::park(); }
+    loop {
+        thread::park();
+    }
 }
 
 
