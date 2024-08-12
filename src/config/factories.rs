@@ -14,6 +14,7 @@ macro_rules! types {
     }
 }
 
+// FIXME: Should this actually be a trait?
 macro_rules! kwarg_get {
     ( $kwargs:expr, $arg:literal ) => {
         $kwargs.get($arg).ok_or(ConfigError::new(format!("Unable to find required kwarg: {}", $arg).as_str()))?.as_str()
@@ -23,9 +24,6 @@ macro_rules! kwarg_get {
 // -----------------------
 // Factory Implementations
 // -----------------------
-//
-// TODO: Consider creating a #[derive!()] trait to allow easy dynamic constructors
-//  (will have to fight the syn library to make it work, might be out of scope)
 pub(super) static TYPES: Lazy<HashMap<&'static str, FactoryFunction>> = Lazy::new(|| types![
     Input,
     Output,
@@ -36,27 +34,27 @@ pub(super) static TYPES: Lazy<HashMap<&'static str, FactoryFunction>> = Lazy::ne
 ]);
 
 impl NodeFactory for Input {
-    fn factory(ctx: &Config, kwargs: &HashMap<String, String>) -> Result<Arc<dyn Node>, ConfigError> {
+    fn factory(_ctx: &Config, kwargs: &HashMap<String, String>) -> Result<Arc<dyn Node>, ConfigError> {
         let node = Input::new(kwarg_get!(kwargs, "name")).map_err(ConfigError::of)?;
         Ok(Arc::new(node))
     }
 }
 
 impl NodeFactory for Output {
-    fn factory(ctx: &Config, kwargs: &HashMap<String, String>) -> Result<Arc<dyn Node>, ConfigError> {
+    fn factory(_ctx: &Config, kwargs: &HashMap<String, String>) -> Result<Arc<dyn Node>, ConfigError> {
         let node = Output::new(kwarg_get!(kwargs, "name")).map_err(ConfigError::of)?;
         Ok(Arc::new(node))
     }
 }
 
 impl NodeFactory for MechBass {
-    fn factory(ctx: &Config, kwargs: &HashMap<String, String>) -> Result<Arc<dyn Node>, ConfigError> {
+    fn factory(_ctx: &Config, _kwargs: &HashMap<String, String>) -> Result<Arc<dyn Node>, ConfigError> {
         Ok(Arc::new(MechBass::new()))
     }
 }
 
 impl NodeFactory for DrumBot {
-    fn factory(ctx: &Config, kwargs: &HashMap<String, String>) -> Result<Arc<dyn Node>, ConfigError> {
+    fn factory(_ctx: &Config, _kwargs: &HashMap<String, String>) -> Result<Arc<dyn Node>, ConfigError> {
         Ok(Arc::new(DrumBot::new()))
     }
 }
@@ -89,7 +87,7 @@ impl NodeFactory for DelayNode {
 }
 
 impl NodeFactory for DebugNode {
-    fn factory(ctx: &Config, kwargs: &HashMap<String, String>) -> Result<Arc<dyn Node>, ConfigError> {
+    fn factory(_ctx: &Config, kwargs: &HashMap<String, String>) -> Result<Arc<dyn Node>, ConfigError> {
         Ok(Arc::new(DebugNode::new(kwarg_get!(kwargs, "name"))))
     }
 }
