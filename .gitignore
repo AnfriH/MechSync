@@ -1,3 +1,5 @@
 /target
 /.idea
 
+/python_tools/.venv
+/python_tools/.idea
