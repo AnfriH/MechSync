@@ -1,3 +1,4 @@
+use std::cmp::Reverse;
 use std::sync::Weak;
 use std::time::{Duration, Instant};
 
@@ -93,15 +94,17 @@ impl MechBass {
     }
 
     fn dispatch_channel(&self, note: u8) -> (usize, Duration) {
-        for channel in 0usize..4 {
-            // TODO: We should also heuristically choose a different string if we cannot pan in time (rare)
-            // play the highest string possible, if taken, use next highest and so on
-            if TUNING[channel] <= note {
-                let prev_note = self.prev_notes[channel].read().unwrap();
-                let delay = self.panning_delay(note, channel);
-                if !prev_note.playing && Instant::now() + delay > prev_note.ts + prev_note.delay {
-                    return (channel, delay)
-                }
+        // collect all channels which the note can play on
+        let mut channels: Vec<usize> = (0usize..4)
+            .filter(|ch| TUNING[*ch] <= note && TUNING[*ch] + FRETS > note)
+            .collect();
+        // sort by the channel which is the closest to the note
+        channels.sort_unstable_by_key(|ch| Reverse(self.panning_delay(note, *ch)));
+        for channel in channels {
+            let prev_note = self.prev_notes[channel].read().unwrap();
+            let delay = self.panning_delay(note, channel);
+            if !prev_note.playing && Instant::now() + delay > prev_note.ts + prev_note.delay {
+                return (channel, delay)
             }
         }
         // TODO: should we consider stealing the channel which has played the longest?
