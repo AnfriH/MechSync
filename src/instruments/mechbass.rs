@@ -1,7 +1,7 @@
 use std::cmp::Reverse;
 use std::sync::Weak;
 use std::time::{Duration, Instant};
-
+use log::{info, warn};
 use may::coroutine::sleep;
 use may::sync::RwLock;
 use once_cell::sync::Lazy;
@@ -111,12 +111,12 @@ impl MechBass {
         // if all usable channels are taken, we'll just steal a channel early
         for channel in 0usize..4 {
             if TUNING[channel] <= note {
-                println!("WARNING: note {} overriden by {} - channel {}", self.prev_notes[channel].read().unwrap().note, note, channel);
+                warn!(target: "MechBass", "Note {} overriden by {} - channel {}", self.prev_notes[channel].read().unwrap().note, note, channel);
                 let delay = self.panning_delay(note, channel);
                 return (channel, delay)
             }
         }
-        return (0, self.panning_delay(note, 0))
+        (0, self.panning_delay(note, 0))
     }
 
     fn find_playing(&self, note: u8) -> Option<(usize, Duration)> {
@@ -128,8 +128,8 @@ impl MechBass {
                 return Some((ch, guard.delay));
             }
         }
-        println!("WARNING: released note {}, but none were playing", note);
-        return None
+        warn!(target: "MechBass", "Released note {}, but none were playing", note);
+        None
     }
 }
 
@@ -147,7 +147,7 @@ impl Node for MechBass {
             {
                 *(self.prev_notes[channel].write().unwrap()) = PlayedNote::play(data.note, delay);
             }
-            println!("⬇ #{} - S{}", data.note, channel);
+            info!(target: "MechBass", "⬇{} on channel {}", data.note, channel);
         } else {
             let Some(playing) = self.find_playing(data.note) else {
                 return;
@@ -160,7 +160,7 @@ impl Node for MechBass {
                 prev_note.ts = Instant::now();
             }
 
-            println!("⬆ #{} - S{}", data.note, channel);
+            info!(target: "MechBass", "⬆{} on channel {}", data.note, channel);
         }
 
         sleep(delay);

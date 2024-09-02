@@ -1,8 +1,11 @@
 use std::error::Error;
 use std::fs::read_to_string;
 use std::path::Path;
-use std::thread;
+use std::process::exit;
+use std::{env, thread};
+use std::io::Write;
 use clap::Parser;
+use log::{error, trace};
 use crate::config::graph::Graph;
 
 mod node;
@@ -21,12 +24,22 @@ struct Args {
 }
 
 fn main() {
-    run().unwrap_or_else(|err| println!("An error occured:\n{}", err));
+    if env::var("RUST_LOG").is_err() {
+        env::set_var("RUST_LOG", "info")
+    }
+    env_logger::builder().format(|fmt, record|
+        writeln!(fmt, "[{}@{}]:\n{}", record.level(), record.target(), record.args())
+    ).init();
+    run().unwrap_or_else(|err| {
+        error!(target: "Startup", "{}", err);
+        exit(1);
+    });
 }
 
 fn run() -> Result<(), Box<dyn Error>> {
     let args = Args::try_parse()?;
     let yaml = read_to_string(Path::new(&args.config_file))?;
+    trace!("explode");
     let _graph = Graph::from_yaml(&yaml)?;
 
     loop {

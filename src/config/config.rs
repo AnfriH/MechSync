@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::time::Duration;
+use log::trace;
 use serde::{Deserialize, Deserializer};
 use serde::de::Error as SerdeError;
 use crate::config::factories::TYPES;
@@ -55,8 +56,10 @@ impl Config {
                 .ok_or(ConfigError::new(&format!("Unknown type: {}", type_)))?;
 
             let dyn_node = factory(&self, &node.traits)?;
+            trace!(target: "Config", "Loaded node {} of {}", node.traits.get("name").unwrap(), type_);
             if let Some(next) = node.traits.get("next") {
                 self.delays.insert(next.clone(), dyn_node.delay() + *self.delays.get(&node.name).unwrap_or(&Duration::from_secs(0)));
+                trace!(target: "Config", "Bound {} -> {}", node.traits.get("name").unwrap(), next);
             }
             graph.insert(
                 node.name.as_str(),

@@ -1,6 +1,7 @@
 use std::array;
 use std::sync::Weak;
 use std::time::{Duration, Instant};
+use log::{info};
 use may::sync::RwLock;
 use crate::data::MidiData;
 use crate::node::{Node, OptNode};
@@ -59,9 +60,10 @@ impl Node for DrumBot {
         }
 
         // simple check that an arm isn't already there
-        for arm in &self.arms {
+        for (index, arm) in self.arms.iter().enumerate() {
             let arm_lock = arm.read().unwrap();
             if arm_lock.last_played == data.note {
+                info!(target: "DrumBot", "▩{} on arm {}", data.note, index);
                 self.next.call(MidiData {
                     instruction: data.instruction,
                     channel: data.channel,
@@ -72,11 +74,13 @@ impl Node for DrumBot {
             }
         }
 
-        let mut arms: Vec<&RwLock<Arm>> = self.arms.iter()
-            .filter(|arm| arm.read().unwrap().get(data.note).is_some())
+        // if no arms are at the drum, we want to use the least-used arm (whichever has been idle for the longest)
+        let mut arms: Vec<(usize, &RwLock<Arm>)> = self.arms.iter()
+            .enumerate()
+            .filter(|(_i, arm)| arm.read().unwrap().get(data.note).is_some())
             .collect();
-        arms.sort_unstable_by_key(|arm| arm.read().unwrap().ts);
-        if let Some(arm) = arms.get(0) {
+        arms.sort_unstable_by_key(|(_i, arm)| arm.read().unwrap().ts);
+        if let Some((index, arm)) = arms.get(0) {
             let note: u8;
             {
                 let mut arm_lock = arm.write().unwrap();
@@ -84,7 +88,7 @@ impl Node for DrumBot {
                 arm_lock.last_played = data.note;
                 note = arm_lock.get(data.note).unwrap();
             }
-
+            info!(target: "MechBass", "▩{} on arm {}", data.note, index);
             self.next.call(MidiData {
                 instruction: data.instruction,
                 channel: data.channel,

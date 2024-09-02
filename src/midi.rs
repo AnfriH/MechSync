@@ -1,7 +1,7 @@
 use std::mem::ManuallyDrop;
 // mutex should be fine here, as we only bind from a single thread. sorry may :(
 use std::sync::{Mutex, Weak};
-
+use log::trace;
 use may::go;
 use may::sync::RwLock;
 use midir::{ConnectError, MidiInput, MidiInputConnection, MidiOutput, MidiOutputConnection};
@@ -39,12 +39,14 @@ impl Input {
 
         let binding = InputCallback { ptr: Box::into_raw(Box::new(RwLock::new(None)))};
         let binding_cpy = binding;
-
+        let name_cpy = String::from(name);
         let input = Input {
             connection: ManuallyDrop::new(Mutex::new(backing.create_virtual(name, move |_ts, data, _| {
                 let md = MidiData::from_slice(data);
                 let binding_cpy = binding_cpy;
-                go!(move || unsafe{
+                let name_cpy = name_cpy.clone();
+                go!(move || unsafe {
+                    trace!(target: &name_cpy, "Received {:?}", md);
                     binding_cpy.call(md);
                 });
             }, ())?)),
@@ -58,7 +60,7 @@ impl Input {
 impl Node for Input {
     // NOTE: you probably didn't want to call this
     fn call(&self, _data: MidiData) -> () {
-        //TODO: what should we do here?
+        unimplemented!()
     }
 
     fn bind(&self, node: Weak<dyn Node>) {
@@ -81,23 +83,25 @@ impl Drop for Input {
 }
 
 pub(crate) struct Output {
+    name: String,
     output: Mutex<MidiOutputConnection>
 }
 
 impl Output {
     pub(crate) fn new(name: &str) -> Result<Self, ConnectError<MidiOutput>> {
         let backing = MidiOutput::new("MechSync").unwrap();
-        Ok(Output { output: Mutex::new(backing.create_virtual(name)?), })
+        Ok(Output { name: String::from(name), output: Mutex::new(backing.create_virtual(name)?), })
     }
 }
 
 impl Node for Output {
     fn call(&self, data: MidiData) -> () {
+        trace!(target: &self.name, "Transmitting {:?}", data);
         self.output.lock().unwrap().send(data.to_array().as_slice()).unwrap();
     }
 
     // NOTE: you probably didn't want to call this
     fn bind(&self, _node: Weak<dyn Node>) -> () {
-        //TODO: what should we do here?
+        unimplemented!()
     }
 }
