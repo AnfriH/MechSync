@@ -45,7 +45,7 @@ impl DebugNode {
 
 impl Node for DebugNode {
     fn call(&self, data: MidiData) -> () {
-        println!("{}: Received {:?} at {:?}", self.name, data.data, Instant::now());
+        println!("{}: Received {:?} at {:?}", self.name, data, Instant::now());
         self.next.call(data);
     }
 
@@ -72,7 +72,7 @@ impl Node for DelayNode {
     fn call(&self, data: MidiData) -> () {
         //TODO: coroutine::sleep should be evaluated to see whether it may benefit from spin-locking
         sleep(self.duration);
-        self.next.call(MidiData { ts: data.ts + self.duration.as_nanos() as u64, data: data.data });
+        self.next.call(data);
     }
 
     fn bind(&self, node: Weak<dyn Node>) -> () {

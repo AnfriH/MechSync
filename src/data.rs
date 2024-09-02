@@ -1,19 +1,34 @@
 #[derive(Debug)]
 pub(crate) struct MidiData {
-    pub ts: u64,
-    pub data: [u8; 3]
+    pub instruction: u8,
+    pub channel: u8,
+    pub note: u8,
+    pub velocity: u8
 }
 
 impl MidiData {
-    pub(crate) fn from_slice(ts: u64, data: &[u8]) -> MidiData {
-        let mut md = MidiData {
-            ts,
-            data: [0u8; 3],
+    pub(crate) fn from_slice(data: &[u8]) -> MidiData {
+        let (instruction, channel) = if let Some(inst) = data.get(0) {
+            ((*inst & 0b1111_0000) >> 4, *inst & 0b0000_1111)
+        } else {
+            (0u8, 0u8)
         };
-        for (x, y) in md.data.iter_mut().zip(data) {
-            *x = *y;
+        let note = *data.get(1).unwrap_or(&0);
+        let velocity = *data.get(2).unwrap_or(&0);
+        MidiData {
+            instruction,
+            channel,
+            note,
+            velocity,
         }
-        md
+    }
+
+    pub(crate) fn to_array(&self) -> [u8; 3] {
+        [
+            (self.instruction << 4) | self.channel,
+            self.note,
+            self.velocity
+        ]
     }
 }
 

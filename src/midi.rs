@@ -41,8 +41,8 @@ impl Input {
         let binding_cpy = binding;
 
         let input = Input {
-            connection: ManuallyDrop::new(Mutex::new(backing.create_virtual(name, move |ts, data, _| {
-                let md = MidiData::from_slice(ts, data);
+            connection: ManuallyDrop::new(Mutex::new(backing.create_virtual(name, move |_ts, data, _| {
+                let md = MidiData::from_slice(data);
                 let binding_cpy = binding_cpy;
                 go!(move || unsafe{
                     binding_cpy.call(md);
@@ -93,7 +93,7 @@ impl Output {
 
 impl Node for Output {
     fn call(&self, data: MidiData) -> () {
-        self.output.lock().unwrap().send(data.data.as_slice()).unwrap();
+        self.output.lock().unwrap().send(data.to_array().as_slice()).unwrap();
     }
 
     // NOTE: you probably didn't want to call this

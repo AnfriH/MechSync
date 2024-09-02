@@ -11,12 +11,12 @@ use crate::node::{Node, OptNode};
 // 12 notes in a scale
 const TEMPERAMENT: f32 = 12f32;
 
-// TODO: we've only derived using G2 -> (G2 .. G3), maybe worth testing some additional transitions?
 // magic constants obtained via regression of Δt = linear * Δd ^ exponential + quad * Δd ^ 2
 const LINEAR_COMP: f32 = 0.515936f32;
 const EXPONENTIAL_COMP: f32 = 0.515920f32;
 const QUADRATIC_COMP: f32 = 0.125675f32;
 
+// TODO: We should consider turning these into instance-variables for configuration support
 const TUNING: [u8; 4] = [43, 38, 33, 28];
 const FRETS: u8 = 13;
 
@@ -135,25 +135,21 @@ impl MechBass {
 
 impl Node for MechBass {
     fn call(&self, data: MidiData) -> () {
-        let instruction = (data.data[0] & 0b1111_0000) >> 4;
-
-        let (0b1000 | 0b1001) = instruction else {
+        let (0b1000 | 0b1001) = data.instruction else {
             return;
         };
-        let note = data.data[1];
-        let velocity = data.data[2];
         let channel;
         let delay;
 
         // TODO: this behaviour still needs cleaning up a lot!
-        if instruction == 0b1001 && velocity != 0 {
-            (channel, delay) = self.dispatch_channel(note);
+        if data.instruction == 0b1001 && data.velocity != 0 {
+            (channel, delay) = self.dispatch_channel(data.note);
             {
-                *(self.prev_notes[channel].write().unwrap()) = PlayedNote::play(note, delay);
+                *(self.prev_notes[channel].write().unwrap()) = PlayedNote::play(data.note, delay);
             }
-            println!("⬇ #{} - S{}", note, channel);
+            println!("⬇ #{} - S{}", data.note, channel);
         } else {
-            let Some(playing) = self.find_playing(note) else {
+            let Some(playing) = self.find_playing(data.note) else {
                 return;
             };
             (channel, delay) = playing;
@@ -164,12 +160,16 @@ impl Node for MechBass {
                 prev_note.ts = Instant::now();
             }
 
-            println!("⬆ #{} - S{}", note, channel);
+            println!("⬆ #{} - S{}", data.note, channel);
         }
 
         sleep(delay);
-        let function = (instruction << 4) | channel as u8;
-        self.next.call(MidiData {ts: data.ts, data: [function, data.data[1], data.data[2]] })
+        self.next.call(MidiData {
+            instruction: data.instruction,
+            channel: channel as u8,
+            note: data.note,
+            velocity: data.velocity,
+        })
     }
 
     fn bind(&self, node: Weak<dyn Node>) -> () {
