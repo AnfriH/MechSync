@@ -1,0 +1,53 @@
+---
+# MechBass Configuration
+- name: MechBass Input
+  type: Input
+  next: MechBass
+
+- name: MechBass
+  type: MechBass
+  next: MechBass Delay
+
+- name: MechBass Delay
+  type: DelayNode
+  is_total: true
+  duration: 2
+  next: MechBass Output
+
+- name: MechBass Output
+  type: Output
+
+
+# DrumBot Configuration
+- name: DrumBot Input
+  type: Input
+  next: DrumBot
+
+- name: DrumBot
+  type: DrumBot
+  arms:
+    # left arm
+    - 42: 42 # hi-hat
+      50: 50 # high tom
+      48: 50
+      38: 38 # acoustic snare
+      49: 49 # crash cymbal 1
+      57: 49
+
+    # right arm
+    - 38: 39 # electric snare
+      47: 47 # low-mid tom
+      45: 47
+      43: 41 # high floor tom
+      41: 41
+
+  next: DrumBot Delay
+
+- name: DrumBot Delay
+  type: DelayNode
+  is_total: true
+  duration: 2
+  next: DrumBot Output
+
+- name: DrumBot Output
+  type: Output

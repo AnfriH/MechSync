@@ -1,0 +1,31 @@
+---
+- name: MechBass Input
+  type: Input
+  next: MechBass
+
+- name: MechBass
+  type: MechBass
+  next: MechBass Delay
+
+- name: MechBass Delay
+  type: DelayNode
+  is_total: true
+  duration: 0.5
+  next: MechBass Output
+
+- name: MechBass Output
+  type: Output
+
+
+- name: Synth Input
+  type: Input
+  next: Synth Delay
+
+- name: Synth Delay
+  type: DelayNode
+  is_total: true
+  duration: 0.5
+  next: Synth Output
+
+- name: Synth Output
+  type: Output
