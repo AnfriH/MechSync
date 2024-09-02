@@ -1,14 +1,13 @@
-use std::array;
 use std::sync::Weak;
 use std::time::{Duration, Instant};
-use log::{info};
+use log::{info, warn};
 use may::sync::RwLock;
+use crate::config::ArmsConfig;
 use crate::data::MidiData;
 use crate::node::{Node, OptNode};
 
 const DRUMBOT_DELAY: Duration = Duration::from_millis(2000);
-
-// FIXME: This needs a proper constructor
+const KICK_NOTE: u8 = 35;
 
 struct Arm {
     mapping: Vec<(u8, u8)>, // likely cheaper to just use a vec
@@ -41,10 +40,9 @@ pub struct DrumBot {
 }
 
 impl DrumBot {
-    pub(crate) fn new() -> Self {
-        let mappings: [Vec<(u8, u8)>; 3] = array::from_fn(|_| vec![]);
+    pub(crate) fn new(mappings: &Vec<ArmsConfig>) -> Self {
         DrumBot {
-            arms: mappings.iter().map(|data| RwLock::new(Arm::new(data.clone()))).collect(),
+            arms: mappings.iter().map(|data| RwLock::new(Arm::new(data.0.clone()))).collect(),
             next: RwLock::new(None)
         }
     }
@@ -56,6 +54,13 @@ impl Node for DrumBot {
 
         // only allow note-ons (might be changed later)
         if data.instruction != 0b1001 {
+            return;
+        }
+
+        // Kick drum is bound to a fixed channel, and therefore does not require mapping
+        if data.note == KICK_NOTE {
+            info!(target: "DrumBot", "kick");
+            self.next.call(data);
             return;
         }
 
@@ -88,7 +93,7 @@ impl Node for DrumBot {
                 arm_lock.last_played = data.note;
                 note = arm_lock.get(data.note).unwrap();
             }
-            info!(target: "MechBass", "▩{} on arm {}", data.note, index);
+            info!(target: "DrumBot", "▩{} on arm {}", data.note, index);
             self.next.call(MidiData {
                 instruction: data.instruction,
                 channel: data.channel,
@@ -99,7 +104,11 @@ impl Node for DrumBot {
             return;
         }
 
-        // if no arms were assigned, it's likely we want to passthrough
+        warn!(
+            target: "DrumBot",
+            "No arms allocated to ▩{}, performing direct pass-through!",
+            data.note
+        );
         self.next.call(data);
     }
 
