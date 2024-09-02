@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use once_cell::sync::Lazy;
 
-use crate::config::config::{Config, ConfigError};
+use crate::config::config::{Config, ConfigError, NodeConfig};
 use crate::instruments::{DrumBot, MechBass};
 use crate::midi::{Input, Output};
 use crate::node::{DebugNode, DelayNode, Node};
@@ -11,13 +11,6 @@ use crate::node::{DebugNode, DelayNode, Node};
 macro_rules! types {
     ( $( $typename:ident ),* ) => {
         HashMap::from([$((stringify!($typename), $typename::factory as FactoryFunction), )*])
-    }
-}
-
-// FIXME: Should this actually be a trait?
-macro_rules! kwarg_get {
-    ( $kwargs:expr, $arg:literal ) => {
-        $kwargs.get($arg).ok_or(ConfigError::new(format!("Unable to find required kwarg: {}", $arg).as_str()))?.as_str()
     }
 }
 
@@ -34,42 +27,41 @@ pub(super) static TYPES: Lazy<HashMap<&'static str, FactoryFunction>> = Lazy::ne
 ]);
 
 impl NodeFactory for Input {
-    fn factory(_ctx: &Config, kwargs: &HashMap<String, String>) -> Result<Arc<dyn Node>, ConfigError> {
-        let node = Input::new(kwarg_get!(kwargs, "name")).map_err(ConfigError::of)?;
+    fn factory(_ctx: &Config, config: &NodeConfig) -> Result<Arc<dyn Node>, ConfigError> {
+        let node = Input::new(config.name.as_str()).map_err(ConfigError::of)?;
         Ok(Arc::new(node))
     }
 }
 
 impl NodeFactory for Output {
-    fn factory(_ctx: &Config, kwargs: &HashMap<String, String>) -> Result<Arc<dyn Node>, ConfigError> {
-        let node = Output::new(kwarg_get!(kwargs, "name")).map_err(ConfigError::of)?;
+    fn factory(_ctx: &Config, config: &NodeConfig) -> Result<Arc<dyn Node>, ConfigError> {
+        let node = Output::new(config.name.as_str()).map_err(ConfigError::of)?;
         Ok(Arc::new(node))
     }
 }
 
 impl NodeFactory for MechBass {
-    fn factory(_ctx: &Config, _kwargs: &HashMap<String, String>) -> Result<Arc<dyn Node>, ConfigError> {
+    fn factory(_ctx: &Config, _config: &NodeConfig) -> Result<Arc<dyn Node>, ConfigError> {
         Ok(Arc::new(MechBass::new()))
     }
 }
 
 impl NodeFactory for DrumBot {
-    fn factory(_ctx: &Config, _kwargs: &HashMap<String, String>) -> Result<Arc<dyn Node>, ConfigError> {
-        Ok(Arc::new(DrumBot::new()))
+    fn factory(_ctx: &Config, config: &NodeConfig) -> Result<Arc<dyn Node>, ConfigError> {
+        let arms = config.arms.as_ref().ok_or(ConfigError::new("Arms missing"))?;
+        Ok(Arc::new(DrumBot::new(arms)))
     }
 }
 
 impl NodeFactory for DelayNode {
-    fn factory(ctx: &Config, kwargs: &HashMap<String, String>) -> Result<Arc<dyn Node>, ConfigError> {
+    fn factory(ctx: &Config, config: &NodeConfig) -> Result<Arc<dyn Node>, ConfigError> {
         let duration_raw = Duration::from_secs_f32(
-            kwarg_get!(kwargs, "duration").parse().map_err(ConfigError::of)?
+            config.duration.ok_or(ConfigError::new("Duration missing"))?
         );
-        let is_total = kwargs.get("is_total")
-            .map(|e| e.parse::<bool>().unwrap_or(false))
-            .unwrap_or(false);
+        let is_total = config.is_total.unwrap_or(false);
 
         let duration = if is_total {
-            let prev_duration = *ctx.delays.get(kwargs.get("name").unwrap()).unwrap();
+            let prev_duration = *ctx.delays.get(&config.name).unwrap();
             if prev_duration > duration_raw {
                 return Err(ConfigError::new(format!(
                     "Previous duration longer than total duration required ({:?} > {:?})",
@@ -87,15 +79,14 @@ impl NodeFactory for DelayNode {
 }
 
 impl NodeFactory for DebugNode {
-    fn factory(_ctx: &Config, kwargs: &HashMap<String, String>) -> Result<Arc<dyn Node>, ConfigError> {
-        Ok(Arc::new(DebugNode::new(kwarg_get!(kwargs, "name"))))
+    fn factory(_ctx: &Config, config: &NodeConfig) -> Result<Arc<dyn Node>, ConfigError> {
+        Ok(Arc::new(DebugNode::new(config.name.as_str())))
     }
 }
 
 // -----------------------
-
-type FactoryFunction = fn(&Config, &HashMap<String, String>) -> Result<Arc<dyn Node>, ConfigError>;
+type FactoryFunction = fn(&Config, &NodeConfig) -> Result<Arc<dyn Node>, ConfigError>;
 
 pub(super) trait NodeFactory {
-    fn factory(ctx: &Config, kwargs: &HashMap<String, String>) -> Result<Arc<dyn Node>, ConfigError>;
+    fn factory(ctx: &Config, config: &NodeConfig) -> Result<Arc<dyn Node>, ConfigError>;
 }

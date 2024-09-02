@@ -5,7 +5,7 @@ use std::process::exit;
 use std::{env, thread};
 use std::io::Write;
 use clap::Parser;
-use log::{error, trace};
+use log::{error, info};
 use crate::config::graph::Graph;
 
 mod node;
@@ -39,9 +39,9 @@ fn main() {
 fn run() -> Result<(), Box<dyn Error>> {
     let args = Args::try_parse()?;
     let yaml = read_to_string(Path::new(&args.config_file))?;
-    trace!("explode");
+    info!(target: "Startup", "Loading config");
     let _graph = Graph::from_yaml(&yaml)?;
-
+    info!(target: "Startup", "Config loaded!");
     loop {
         thread::park();
     }

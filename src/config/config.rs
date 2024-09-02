@@ -4,7 +4,6 @@ use std::fmt::{Debug, Display, Formatter};
 use std::time::Duration;
 use log::trace;
 use serde::{Deserialize, Deserializer};
-use serde::de::Error as SerdeError;
 use crate::config::factories::TYPES;
 use crate::config::graph::Graph;
 
@@ -40,11 +39,26 @@ pub(crate) struct Config {
     pub(super) delays: HashMap<String, Duration>
 }
 
+#[derive(Deserialize)]
 pub(crate) struct NodeConfig {
-    name: String,
-    type_: String,
-    traits: HashMap<String, String>
+    pub(crate) name: String,
+    #[serde(rename = "type")]
+    pub(crate) type_: String,
+    pub(crate) next: Option<String>,
+
+    // DelayNode
+    pub(crate) is_total: Option<bool>,
+    pub(crate) duration: Option<f32>,
+
+    // DrumBot
+    pub(crate) arms: Option<Vec<ArmsConfig>>,
 }
+
+#[derive(Deserialize)]
+pub(crate) struct ArmsConfig(
+    #[serde(with = "tuple_vec_map")]
+    pub(crate) Vec<(u8, u8)>
+);
 
 impl Config {
     pub(crate) fn build(mut self) -> Result<Graph, ConfigError> {
@@ -55,11 +69,11 @@ impl Config {
             let factory = TYPES.get(type_)
                 .ok_or(ConfigError::new(&format!("Unknown type: {}", type_)))?;
 
-            let dyn_node = factory(&self, &node.traits)?;
-            trace!(target: "Config", "Loaded node {} of {}", node.traits.get("name").unwrap(), type_);
-            if let Some(next) = node.traits.get("next") {
+            let dyn_node = factory(&self, &node)?;
+            trace!(target: "Config", "Loaded node {} of {}", node.name, type_);
+            if let Some(next) = &node.next {
                 self.delays.insert(next.clone(), dyn_node.delay() + *self.delays.get(&node.name).unwrap_or(&Duration::from_secs(0)));
-                trace!(target: "Config", "Bound {} -> {}", node.traits.get("name").unwrap(), next);
+                trace!(target: "Config", "Bound {} -> {}", node.name, next);
             }
             graph.insert(
                 node.name.as_str(),
@@ -68,7 +82,7 @@ impl Config {
         }
 
         for node in self.nodes.iter() {
-            if let Some(next) = node.traits.get("next") {
+            if let Some(next) = &node.next {
                 graph.bind(node.name.as_str(), next.as_str())?;
             }
         }
@@ -80,20 +94,5 @@ impl<'de> Deserialize<'de> for Config {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let nodes = Vec::deserialize(d)?;
         Ok(Config { nodes, delays: HashMap::new() })
-    }
-}
-
-impl<'de> Deserialize<'de> for NodeConfig {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let traits: HashMap<String, String> = HashMap::deserialize(d)?;
-        let name = traits.get("name").ok_or(SerdeError::missing_field("name"))?.to_string();
-        let type_ = traits.get("type").ok_or(SerdeError::missing_field("type"))?.to_string();
-        Ok(
-            NodeConfig {
-                name,
-                type_,
-                traits,
-            }
-        )
     }
 }
