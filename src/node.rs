@@ -10,7 +10,6 @@ pub(crate) type OptNode = RwLock<Option<Weak<dyn Node>>>;
 pub(crate) trait Node: Sync + Send {
     fn call(&self, data: MidiData) -> ();
 
-    //FIXME: This doesn't seem appropriate. Not all nodes support binding children
     fn bind(&self, node: Weak<dyn Node>) -> ();
 
     fn delay(&self) -> Duration {

@@ -52,6 +52,9 @@ pub(crate) struct NodeConfig {
 
     // DrumBot
     pub(crate) arms: Option<Vec<ArmsConfig>>,
+
+    // PyNode
+    pub(crate) source: Option<String>
 }
 
 #[derive(Deserialize)]

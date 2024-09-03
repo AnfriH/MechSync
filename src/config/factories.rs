@@ -1,10 +1,12 @@
 use std::collections::HashMap;
+use std::fs::read_to_string;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 use once_cell::sync::Lazy;
 
 use crate::config::config::{Config, ConfigError, NodeConfig};
-use crate::instruments::{DrumBot, MechBass};
+use crate::instruments::{DrumBot, MechBass, PyNode};
 use crate::midi::{Input, Output};
 use crate::node::{DebugNode, DelayNode, Node};
 
@@ -22,6 +24,7 @@ pub(super) static TYPES: Lazy<HashMap<&'static str, FactoryFunction>> = Lazy::ne
     Output,
     MechBass,
     DrumBot,
+    PyNode,
     DelayNode,
     DebugNode
 ]);
@@ -81,6 +84,18 @@ impl NodeFactory for DelayNode {
 impl NodeFactory for DebugNode {
     fn factory(_ctx: &Config, config: &NodeConfig) -> Result<Arc<dyn Node>, ConfigError> {
         Ok(Arc::new(DebugNode::new(config.name.as_str())))
+    }
+}
+
+impl NodeFactory for PyNode {
+    fn factory(_ctx: &Config, config: &NodeConfig) -> Result<Arc<dyn Node>, ConfigError> {
+        let duration = Duration::from_secs_f32(
+            config.duration.ok_or(ConfigError::new("Duration missing"))?
+        );
+        let source_path = config.source.as_ref().ok_or(ConfigError::new("Source missing"))?;
+        let source = read_to_string(Path::new(source_path)).map_err(ConfigError::of)?;
+        let pynode = PyNode::new(source.as_str(), duration).map_err(ConfigError::of)?;
+        Ok(Arc::new(pynode))
     }
 }
 
