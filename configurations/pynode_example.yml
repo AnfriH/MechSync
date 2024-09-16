@@ -1,0 +1,13 @@
+---
+- name: PyNode Input
+  type: Input
+  next: PyNode
+
+- name: PyNode
+  type: PyNode
+  duration: 0.5
+  source: example.py
+  next: PyNode Output
+
+- name: PyNode Output
+  type: Output
