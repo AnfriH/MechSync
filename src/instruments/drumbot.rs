@@ -7,7 +7,7 @@ use crate::data::MidiData;
 use crate::node::{Node, OptNode};
 
 const DRUMBOT_DELAY: Duration = Duration::from_millis(2000);
-const KICK_NOTE: u8 = 35;
+const KICK_NOTE: u8 = 36;
 
 struct Arm {
     mapping: Vec<(u8, u8)>, // likely cheaper to just use a vec
@@ -50,17 +50,20 @@ impl DrumBot {
 
 impl Node for DrumBot {
     fn call(&self, data: MidiData) -> () {
-        // FIXME: this is cloned from MechBass, should we modularize?
-
         // only allow note-ons (might be changed later)
-        if data.instruction != 0b1001 {
+        if data.instruction != 0b1001 || data.velocity == 0 {
             return;
         }
 
         // Kick drum is bound to a fixed channel, and therefore does not require mapping
-        if data.note == KICK_NOTE {
+        if let 35 | 36 = data.note {
             info!(target: "DrumBot", "kick");
-            self.next.call(data);
+            self.next.call(MidiData {
+                instruction: data.instruction,
+                channel: data.channel,
+                note: KICK_NOTE,
+                velocity: data.velocity,
+            });
             return;
         }
 
