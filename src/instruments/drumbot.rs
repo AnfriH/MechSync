@@ -6,7 +6,7 @@ use crate::config::ArmsConfig;
 use crate::data::MidiData;
 use crate::node::{Node, OptNode};
 
-const DRUMBOT_DELAY: Duration = Duration::from_millis(2000);
+const DRUMBOT_DELAY: Duration = Duration::from_millis(1995);
 const KICK_NOTE: u8 = 36;
 
 struct Arm {
