@@ -98,25 +98,25 @@ impl MechBass {
         let mut channels: Vec<usize> = (0usize..4)
             .filter(|ch| TUNING[*ch] <= note && TUNING[*ch] + FRETS > note)
             .collect();
+
         // sort by the channel which is the closest to the note
         channels.sort_unstable_by_key(|ch| Reverse(self.panning_delay(note, *ch)));
-        for channel in channels {
+        for &channel in &channels {
             let prev_note = self.prev_notes[channel].read().unwrap();
             let delay = self.panning_delay(note, channel);
             if !prev_note.playing && Instant::now() + delay > prev_note.ts + prev_note.delay {
                 return (channel, delay)
             }
         }
-        // TODO: should we consider stealing the channel which has played the longest?
+
         // if all usable channels are taken, we'll just steal a channel early
-        for channel in 0usize..4 {
-            if TUNING[channel] <= note {
-                warn!(target: "MechBass", "Note {} overriden by {} - channel {}", self.prev_notes[channel].read().unwrap().note, note, channel);
-                let delay = self.panning_delay(note, channel);
-                return (channel, delay)
-            }
+        if let Some(&channel) = channels.get(0) {
+            warn!(target: "MechBass", "Note {} overriden by {} - channel {}", self.prev_notes[channel].read().unwrap().note, note, channel);
+            (channel, self.panning_delay(note, channel))
+        } else {
+            // transparently send all unrecognised notes to channel 0
+            (0, Duration::from_millis(0))
         }
-        (0, self.panning_delay(note, 0))
     }
 
     fn find_playing(&self, note: u8) -> Option<(usize, Duration)> {
